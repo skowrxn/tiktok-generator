@@ -49,7 +49,7 @@ export default function App() {
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       // Filter for images only to be safe
-      const validFiles = Array.from(e.dataTransfer.files).filter(file => 
+      const validFiles = Array.from(e.dataTransfer.files).filter((file: File) => 
         file.type.startsWith('image/')
       );
       

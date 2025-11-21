@@ -1,3 +1,4 @@
+import React from "react";
 import type { Metadata } from "next";
 import { Inter, Noto_Color_Emoji } from "next/font/google";
 import "./globals.css";
