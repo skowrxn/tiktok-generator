@@ -1,0 +1,5 @@
+{
+  "name": "TikGen Studio",
+  "description": "A specialized tool for clothing brands to generate 10-second slideshow TikToks with text overlays, powered by Gemini for creative captions and Supabase for storage.",
+  "requestFramePermissions": []
+}
