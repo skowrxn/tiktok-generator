@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, Play, Loader2, Settings, Share2, Type, Clock } from 'lucide-react';
+import { Upload, Play, Loader2, Settings, Share2, Type, Clock, X } from 'lucide-react';
 import { VideoGenerator } from '../services/videoService';
 import { TikTokService } from '../services/tikTokService';
 import { AppStatus, TikTokConfig } from '../types';
@@ -10,13 +10,13 @@ const DEFAULT_TIKTOK_CONFIG: TikTokConfig = {
   accessToken: ''
 };
 
-export default function Home() {
+export default function App() {
   // --- State ---
   const [images, setImages] = useState<File[]>([]);
   const [overlayText, setOverlayText] = useState<string>('');
   const [frameDuration, setFrameDuration] = useState<number>(0.3);
   const [totalDuration, setTotalDuration] = useState<number>(10);
-  const [fontSize, setFontSize] = useState<number>(80);
+  const [fontSize, setFontSize] = useState<number>(60);
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
   const [showSettings, setShowSettings] = useState(false);
   const [tikTokConfig, setTikTokConfig] = useState<TikTokConfig>(DEFAULT_TIKTOK_CONFIG);
@@ -26,37 +26,78 @@ export default function Home() {
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef<number>(0);
 
   // --- Handlers ---
+  
+  // Triggered when user explicitly clicks the upload area
+  const handleUploadClick = (e: React.MouseEvent) => {
+    // If we are currently in a drag state, ignore click to prevent conflict
+    if (isDragging) return;
+
+    // Clear the input value so selecting the same file triggers onChange again
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+        fileInputRef.current.click();
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setImages(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files);
+      setImages(prev => [...prev, ...newFiles]);
       resetGenerationState();
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
+    resetGenerationState();
+  };
+
+  // --- Robust Drag & Drop Handlers ---
+  
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
     }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+    e.stopPropagation();
+    // Necessary to allow dropping
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    e.stopPropagation();
     
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    setIsDragging(false);
+    dragCounter.current = 0;
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
       // Filter for images only to be safe
-      const validFiles = Array.from(e.dataTransfer.files).filter((file: File) => 
+      const validFiles = Array.from(files).filter(file => 
         file.type.startsWith('image/')
       );
       
       if (validFiles.length > 0) {
-        setImages(validFiles);
+        // Use functional update to append safely
+        setImages(prev => [...prev, ...validFiles]);
         resetGenerationState();
       }
     }
@@ -163,11 +204,12 @@ export default function Home() {
           {/* 1. Image Upload (Drag & Drop) */}
           <section className="space-y-4">
             <div 
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={handleDragOver}
+              onClick={handleUploadClick}
+              onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className={`border-3 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group ${
+              className={`border-3 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group relative ${
                 isDragging 
                   ? 'border-black bg-slate-100 scale-[1.01]' 
                   : 'border-slate-200 hover:border-black hover:bg-slate-50'
@@ -181,17 +223,18 @@ export default function Home() {
                 className="hidden" 
                 onChange={handleImageUpload}
               />
-              <div className="flex flex-col items-center space-y-4">
+              {/* Pointer events none on children helps prevent some drag flicker issues, handled by parent */}
+              <div className="flex flex-col items-center space-y-4 pointer-events-none">
                 <div className={`bg-black p-4 rounded-full transition-transform ${isDragging ? 'scale-110' : 'group-hover:scale-110'}`}>
                     <Upload className="w-8 h-8 text-white" />
                 </div>
                 <div>
                   <p className="font-bold text-lg text-slate-800">
-                    {isDragging ? "Drop it like it's hot!" : "Upload Brand Photos"}
+                    {isDragging ? "Drop images to add!" : "Upload Brand Photos"}
                   </p>
                   <p className="text-slate-500">
                     {images.length > 0 
-                      ? `${images.length} images ready` 
+                      ? `${images.length} images selected (Click to add more)` 
                       : 'Drag & drop images here, or click to select'
                     }
                   </p>
@@ -203,12 +246,19 @@ export default function Home() {
             {images.length > 0 && (
                 <div className="flex gap-3 overflow-x-auto py-2 scrollbar-hide">
                     {images.map((file, idx) => (
-                        <div key={idx} className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                        <div key={idx} className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
                             <img 
                                 src={URL.createObjectURL(file)} 
                                 alt="preview" 
                                 className="w-full h-full object-cover"
                             />
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
+                                className="absolute top-0 right-0 bg-black/60 text-white p-1 rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                title="Remove image"
+                            >
+                                <X size={14} />
+                            </button>
                         </div>
                     ))}
                 </div>
