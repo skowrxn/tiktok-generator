@@ -1,9 +1,11 @@
 export interface VideoConfig {
   images: File[];
   overlayText: string;
+  topText?: string; // optional text at top (e.g., "sprawdź link w BIO")
   frameDuration: number; // seconds per image
   totalDuration: number; // seconds
   fontSize: number; // px
+  audioUrl?: string; // base64 audio URL for background music
 }
 
 export enum AppStatus {
