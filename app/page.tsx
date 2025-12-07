@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Play, Loader2, Settings, Share2, Type, Clock, X } from 'lucide-react';
 import { VideoGenerator } from '../services/videoService';
 import { TikTokService } from '../services/tikTokService';
@@ -29,6 +29,42 @@ export default function App() {
   const dragCounter = useRef<number>(0);
 
   // --- Handlers ---
+
+  const resetGenerationState = () => {
+    setCurrentVideoUrl(null);
+    setCurrentBlob(null);
+    setStatus(AppStatus.IDLE);
+  };
+
+  // Paste Handler
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData || !e.clipboardData.items) return;
+
+      const newFiles: File[] = [];
+
+      for (let i = 0; i < e.clipboardData.items.length; i++) {
+        const item = e.clipboardData.items[i];
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            newFiles.push(file);
+          }
+        }
+      }
+
+      if (newFiles.length > 0) {
+        e.preventDefault(); // Prevent default browser behavior (like opening the image)
+        setImages(prev => [...prev, ...newFiles]);
+        resetGenerationState();
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, []);
   
   // Triggered when user explicitly clicks the upload area
   const handleUploadClick = (e: React.MouseEvent) => {
@@ -91,7 +127,7 @@ export default function App() {
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       // Filter for images only to be safe
-      const validFiles = Array.from(files).filter(file => 
+      const validFiles = Array.from(files).filter((file: File) => 
         file.type.startsWith('image/')
       );
       
@@ -101,12 +137,6 @@ export default function App() {
         resetGenerationState();
       }
     }
-  };
-
-  const resetGenerationState = () => {
-    setCurrentVideoUrl(null);
-    setCurrentBlob(null);
-    setStatus(AppStatus.IDLE);
   };
 
   const handleGenerateVideo = async () => {
@@ -201,7 +231,7 @@ export default function App() {
             </div>
           )}
 
-          {/* 1. Image Upload (Drag & Drop) */}
+          {/* 1. Image Upload (Drag & Drop & Paste) */}
           <section className="space-y-4">
             <div 
               onClick={handleUploadClick}
@@ -235,7 +265,7 @@ export default function App() {
                   <p className="text-slate-500">
                     {images.length > 0 
                       ? `${images.length} images selected (Click to add more)` 
-                      : 'Drag & drop images here, or click to select'
+                      : 'Drag & drop, paste (Ctrl+V), or click to select'
                     }
                   </p>
                 </div>
