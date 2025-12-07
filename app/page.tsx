@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Play, Loader2, Settings, Share2, Type, Clock, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Upload, Play, Loader2, Settings, Share2, Type, Clock, X, Image as ImageIcon } from 'lucide-react';
 import { VideoGenerator } from '../services/videoService';
 import { TikTokService } from '../services/tikTokService';
 import { AppStatus, TikTokConfig } from '../types';
@@ -10,7 +10,7 @@ const DEFAULT_TIKTOK_CONFIG: TikTokConfig = {
   accessToken: ''
 };
 
-export default function App() {
+export default function Home() {
   // --- State ---
   const [images, setImages] = useState<File[]>([]);
   const [overlayText, setOverlayText] = useState<string>('');
@@ -30,21 +30,22 @@ export default function App() {
 
   // --- Handlers ---
 
-  const resetGenerationState = () => {
+  const resetGenerationState = useCallback(() => {
     setCurrentVideoUrl(null);
     setCurrentBlob(null);
     setStatus(AppStatus.IDLE);
-  };
+  }, []);
 
-  // Paste Handler
+  // Multi-image Paste Handler
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData || !e.clipboardData.items) return;
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (!e.clipboardData) return;
 
+      const items = e.clipboardData.items;
       const newFiles: File[] = [];
 
-      for (let i = 0; i < e.clipboardData.items.length; i++) {
-        const item = e.clipboardData.items[i];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         if (item.kind === 'file' && item.type.startsWith('image/')) {
           const file = item.getAsFile();
           if (file) {
@@ -54,7 +55,7 @@ export default function App() {
       }
 
       if (newFiles.length > 0) {
-        e.preventDefault(); // Prevent default browser behavior (like opening the image)
+        e.preventDefault();
         setImages(prev => [...prev, ...newFiles]);
         resetGenerationState();
       }
@@ -64,17 +65,13 @@ export default function App() {
     return () => {
       window.removeEventListener('paste', handlePaste);
     };
-  }, []);
-  
-  // Triggered when user explicitly clicks the upload area
-  const handleUploadClick = (e: React.MouseEvent) => {
-    // If we are currently in a drag state, ignore click to prevent conflict
-    if (isDragging) return;
+  }, [resetGenerationState]);
 
-    // Clear the input value so selecting the same file triggers onChange again
+  const handleUploadClick = () => {
+    if (isDragging) return;
     if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-        fileInputRef.current.click();
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
     }
   };
 
@@ -91,8 +88,12 @@ export default function App() {
     resetGenerationState();
   };
 
-  // --- Robust Drag & Drop Handlers ---
-  
+  const clearAllImages = () => {
+    setImages([]);
+    resetGenerationState();
+  };
+
+  // --- Drag & Drop Handlers ---
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -114,25 +115,20 @@ export default function App() {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Necessary to allow dropping
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
     setIsDragging(false);
     dragCounter.current = 0;
-    
+
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      // Filter for images only to be safe
-      const validFiles = Array.from(files).filter((file: File) => 
+      const validFiles = Array.from(files).filter((file: File) =>
         file.type.startsWith('image/')
       );
-      
       if (validFiles.length > 0) {
-        // Use functional update to append safely
         setImages(prev => [...prev, ...validFiles]);
         resetGenerationState();
       }
@@ -141,7 +137,7 @@ export default function App() {
 
   const handleGenerateVideo = async () => {
     if (images.length === 0) return;
-    
+
     setStatus(AppStatus.GENERATING);
     setCurrentVideoUrl(null);
     setCurrentBlob(null);
@@ -160,258 +156,290 @@ export default function App() {
       setCurrentVideoUrl(localUrl);
       setCurrentBlob(blob);
       setStatus(AppStatus.SUCCESS);
-
     } catch (error) {
       console.error(error);
       setStatus(AppStatus.ERROR);
-      alert("Something went wrong during generation.");
+      alert('Something went wrong during generation.');
     }
   };
 
   const handlePostToTikTok = async () => {
     if (!currentBlob) return;
     if (!tikTokConfig.accessToken) {
-        alert("Please enter your TikTok Access Token in settings first.");
-        setShowSettings(true);
-        return;
+      alert('Please enter your TikTok Access Token in settings first.');
+      setShowSettings(true);
+      return;
     }
 
     setStatus(AppStatus.UPLOADING_TIKTOK);
-    
     const tikTokService = new TikTokService(tikTokConfig);
-    
+
     try {
-        await tikTokService.uploadDraft(currentBlob, overlayText || "My Brand Video");
-        alert("Successfully uploaded to TikTok as Draft!");
-        setStatus(AppStatus.SUCCESS);
-    } catch (e: any) {
-        console.error("TikTok Upload Error:", e);
-        alert(`Upload failed: ${e.message}. Note: Localhost uploading often fails due to CORS. Ensure your TikTok App is configured correctly.`);
-        setStatus(AppStatus.SUCCESS); // Reset to allow retry
+      await tikTokService.uploadDraft(currentBlob, overlayText || 'My Brand Video');
+      alert('Successfully uploaded to TikTok as Draft!');
+      setStatus(AppStatus.SUCCESS);
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error('TikTok Upload Error:', e);
+      alert(`Upload failed: ${errorMessage}. Note: Localhost uploading often fails due to CORS.`);
+      setStatus(AppStatus.SUCCESS);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900 font-sans p-6 md:p-12 flex justify-center">
-      
-      {/* Main Container - Centered */}
-      <div className="w-full max-w-3xl space-y-8 bg-white p-8 rounded-3xl shadow-xl">
-          
-          <header className="flex justify-between items-center border-b border-slate-100 pb-6">
+    <div className="min-h-screen bg-black text-white font-sans">
+      {/* Main Container */}
+      <div className="max-w-3xl mx-auto px-4 py-8 md:py-16">
+
+        {/* Header */}
+        <header className="flex justify-between items-center mb-10">
+          <div>
+            <h1 className="text-5xl md:text-6xl font-bold tracking-tight">TikGen Studio</h1>
+            <p className="text-white/70 mt-3 text-lg md:text-xl">Generate branded loops & publish drafts</p>
+          </div>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`p-3 rounded-full transition-colors ${
+              showSettings ? 'bg-surface-light' : 'bg-surface hover:bg-surface-light'
+            }`}
+            title="Settings"
+          >
+            <Settings className="w-6 h-6 text-white/70" />
+          </button>
+        </header>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="bg-surface border border-gray-800 p-6 rounded-xl mb-8 space-y-4">
+            <h3 className="font-bold text-lg">TikTok Configuration</h3>
             <div>
-                <h1 className="text-4xl font-bold tracking-tight text-slate-900">TikGen Studio</h1>
-                <p className="text-slate-500 mt-2 text-lg">Generate branded loops & publish drafts</p>
+              <label className="block text-sm font-medium mb-2 text-white/70">Access Token</label>
+              <input
+                type="password"
+                className="w-full p-3 bg-surface-light border border-gray-800 rounded-lg text-sm focus:ring-2 focus:ring-white/20 outline-none text-white placeholder-white/40"
+                value={tikTokConfig.accessToken}
+                onChange={(e) => setTikTokConfig({ ...tikTokConfig, accessToken: e.target.value })}
+                placeholder="Paste your TikTok API Access Token here..."
+              />
+              <p className="text-xs text-white/50 mt-2">
+                Requires a developer account. Uploads will appear in your account drafts.
+              </p>
             </div>
-            <button 
-              onClick={() => setShowSettings(!showSettings)}
-              className={`p-3 rounded-full transition-colors ${showSettings ? 'bg-slate-200' : 'hover:bg-slate-100'}`}
-              title="Settings"
-            >
-              <Settings className="w-6 h-6 text-slate-600" />
-            </button>
-          </header>
+          </div>
+        )}
 
-          {/* Settings Modal / Inline */}
-          {showSettings && (
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
-              <h3 className="font-semibold text-lg">TikTok Configuration</h3>
-              <div>
-                  <label className="block text-sm font-medium mb-1 text-slate-600">Access Token</label>
-                  <input 
-                      type="password" 
-                      className="w-full p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-black outline-none"
-                      value={tikTokConfig.accessToken}
-                      onChange={(e) => setTikTokConfig({...tikTokConfig, accessToken: e.target.value})}
-                      placeholder="Paste your TikTok API Access Token here..."
-                  />
-                  <p className="text-xs text-slate-400 mt-2">
-                      Requires a developer account. Uploads will appear in your account drafts.
-                  </p>
-              </div>
-            </div>
-          )}
-
-          {/* 1. Image Upload (Drag & Drop & Paste) */}
+        <div className="space-y-8">
+          {/* 1. Image Upload Zone */}
           <section className="space-y-4">
-            <div 
+            <div
               onClick={handleUploadClick}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
-              className={`border-3 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer group relative ${
-                isDragging 
-                  ? 'border-black bg-slate-100 scale-[1.01]' 
-                  : 'border-slate-200 hover:border-black hover:bg-slate-50'
+              className={`border-2 border-dashed rounded-3xl p-10 md:p-12 text-center transition-all cursor-pointer group relative ${
+                isDragging
+                  ? 'border-white bg-surface-light scale-[1.01]'
+                  : 'border-gray-800 hover:border-white/50 hover:bg-surface'
               }`}
             >
-              <input 
+              <input
                 ref={fileInputRef}
-                type="file" 
-                multiple 
-                accept="image/*" 
-                className="hidden" 
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
                 onChange={handleImageUpload}
               />
-              {/* Pointer events none on children helps prevent some drag flicker issues, handled by parent */}
               <div className="flex flex-col items-center space-y-4 pointer-events-none">
-                <div className={`bg-black p-4 rounded-full transition-transform ${isDragging ? 'scale-110' : 'group-hover:scale-110'}`}>
-                    <Upload className="w-8 h-8 text-white" />
+                <div className={`bg-white p-4 rounded-full transition-transform ${isDragging ? 'scale-110' : 'group-hover:scale-110'}`}>
+                  <Upload className="w-8 h-8 text-black" />
                 </div>
                 <div>
-                  <p className="font-bold text-lg text-slate-800">
-                    {isDragging ? "Drop images to add!" : "Upload Brand Photos"}
+                  <p className="font-bold text-xl text-white">
+                    {isDragging ? 'Drop images to add!' : 'Upload Brand Photos'}
                   </p>
-                  <p className="text-slate-500">
-                    {images.length > 0 
-                      ? `${images.length} images selected (Click to add more)` 
+                  <p className="text-white/60 mt-2">
+                    {images.length > 0
+                      ? `${images.length} images selected (Click to add more)`
                       : 'Drag & drop, paste (Ctrl+V), or click to select'
                     }
                   </p>
                 </div>
               </div>
             </div>
-            
+
             {/* Image Preview Strip */}
             {images.length > 0 && (
-                <div className="flex gap-3 overflow-x-auto py-2 scrollbar-hide">
-                    {images.map((file, idx) => (
-                        <div key={idx} className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-slate-200 shadow-sm group">
-                            <img 
-                                src={URL.createObjectURL(file)} 
-                                alt="preview" 
-                                className="w-full h-full object-cover"
-                            />
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
-                                className="absolute top-0 right-0 bg-black/60 text-white p-1 rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                                title="Remove image"
-                            >
-                                <X size={14} />
-                            </button>
-                        </div>
-                    ))}
+              <div className="bg-surface border border-gray-800 rounded-xl p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2 text-white/70">
+                    <ImageIcon className="w-4 h-4" />
+                    <span className="text-sm font-medium">{images.length} images</span>
+                  </div>
+                  <button
+                    onClick={clearAllImages}
+                    className="text-sm text-white/50 hover:text-white transition-colors"
+                  >
+                    Clear all
+                  </button>
                 </div>
+                <div className="flex gap-3 overflow-x-auto py-1 scrollbar-hide">
+                  {images.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-gray-800 group"
+                    >
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`preview ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage(idx);
+                        }}
+                        className="absolute top-1 right-1 bg-black/70 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        title="Remove image"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </section>
 
-          {/* 2. Customize */}
-          <section className="space-y-6 bg-slate-50 p-6 rounded-2xl">
-            <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider">Customization</label>
-            
-            <div className="grid gap-6">
-                {/* Text Input */}
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">Overlay Text</label>
-                    <input 
-                        type="text" 
-                        value={overlayText}
-                        onChange={(e) => setOverlayText(e.target.value)}
-                        placeholder="e.g. NEW COLLECTION DROP"
-                        className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-black outline-none shadow-sm font-medium"
-                    />
+          {/* 2. Customization Panel */}
+          <section className="bg-surface border border-gray-800 rounded-3xl p-6 md:p-8 space-y-6">
+            <label className="block text-sm font-bold text-white/50 uppercase tracking-wider">
+              Customization
+            </label>
+
+            {/* Overlay Text Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-white/80">Overlay Text</label>
+              <input
+                type="text"
+                value={overlayText}
+                onChange={(e) => setOverlayText(e.target.value)}
+                placeholder="e.g. NEW COLLECTION DROP"
+                className="w-full p-4 bg-surface-light border border-gray-800 rounded-xl focus:ring-2 focus:ring-white/20 outline-none text-white placeholder-white/40 font-medium"
+              />
+            </div>
+
+            {/* Sliders Grid */}
+            <div className="grid sm:grid-cols-2 gap-6 md:gap-8">
+              {/* Video Duration */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-white/80 flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Video Length
+                  </span>
+                  <span className="font-bold text-white">{totalDuration}s</span>
                 </div>
+                <input
+                  type="range"
+                  min="3"
+                  max="30"
+                  step="1"
+                  value={totalDuration}
+                  onChange={(e) => setTotalDuration(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
 
-                <div className="grid sm:grid-cols-2 gap-8">
-                    {/* Video Duration Slider */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                             <span className="font-medium text-slate-700 flex items-center gap-2"><Clock className="w-4 h-4"/> Video Length</span>
-                             <span className="font-bold text-slate-900">{totalDuration}s</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="3" 
-                            max="30" 
-                            step="1" 
-                            value={totalDuration}
-                            onChange={(e) => setTotalDuration(parseInt(e.target.value))}
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-black"
-                        />
-                    </div>
-
-                    {/* Speed Slider */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                             <span className="font-medium text-slate-700">Image Duration</span>
-                             <span className="font-bold text-slate-900">{frameDuration}s</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="0.1" 
-                            max="1.0" 
-                            step="0.1" 
-                            value={frameDuration}
-                            onChange={(e) => setFrameDuration(parseFloat(e.target.value))}
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-black"
-                        />
-                    </div>
-
-                    {/* Font Size Slider */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                             <span className="font-medium text-slate-700 flex items-center gap-2"><Type className="w-4 h-4"/> Font Size</span>
-                             <span className="font-bold text-slate-900">{fontSize}px</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min="40" 
-                            max="200" 
-                            step="5" 
-                            value={fontSize}
-                            onChange={(e) => setFontSize(parseInt(e.target.value))}
-                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-black"
-                        />
-                    </div>
+              {/* Image Duration */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-white/80">Image Duration</span>
+                  <span className="font-bold text-white">{frameDuration}s</span>
                 </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.1"
+                  value={frameDuration}
+                  onChange={(e) => setFrameDuration(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Font Size */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-white/80 flex items-center gap-2">
+                    <Type className="w-4 h-4" /> Font Size
+                  </span>
+                  <span className="font-bold text-white">{fontSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="40"
+                  max="200"
+                  step="5"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
             </div>
           </section>
 
           {/* 3. Action Buttons */}
-          <section className="pt-2 flex flex-col gap-3">
-            <button 
+          <section className="flex flex-col gap-4">
+            <button
               onClick={handleGenerateVideo}
               disabled={status === AppStatus.GENERATING || status === AppStatus.UPLOADING_TIKTOK || images.length === 0}
-              className="w-full py-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3"
+              className="w-full py-4 bg-white hover:bg-white/90 disabled:bg-surface-light disabled:text-white/40 disabled:cursor-not-allowed text-black rounded-full font-bold text-lg shadow transition-all flex items-center justify-center gap-3"
             >
-              {status === AppStatus.GENERATING ? <Loader2 className="animate-spin" /> : <Play className="fill-current" />}
+              {status === AppStatus.GENERATING ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Play className="fill-current" />
+              )}
               {status === AppStatus.GENERATING ? 'Rendering Video...' : 'Generate Video'}
             </button>
 
-            {/* Post to TikTok Button - Only shows after successful generation */}
             {status === AppStatus.SUCCESS && currentBlob && (
-                <button 
-                    onClick={handlePostToTikTok}
-                    className="w-full py-4 bg-[#ff0050] hover:bg-[#d60043] text-white rounded-xl font-bold text-lg shadow-xl shadow-red-100 transition-all flex items-center justify-center gap-3 animate-in slide-in-from-bottom-2"
-                >
-                    <Share2 className="w-5 h-5" />
-                    Post Draft to TikTok
-                </button>
+              <button
+                onClick={handlePostToTikTok}
+                className="w-full py-4 bg-[#ff0050] hover:bg-[#d60043] text-white rounded-full font-bold text-lg shadow transition-all flex items-center justify-center gap-3"
+              >
+                <Share2 className="w-5 h-5" />
+                Post Draft to TikTok
+              </button>
             )}
-             {status === AppStatus.UPLOADING_TIKTOK && (
-                 <div className="w-full py-4 bg-slate-100 text-slate-500 rounded-xl font-bold text-lg flex items-center justify-center gap-3">
-                    <Loader2 className="animate-spin text-[#ff0050]" />
-                    Uploading to TikTok...
-                 </div>
+
+            {status === AppStatus.UPLOADING_TIKTOK && (
+              <div className="w-full py-4 bg-surface border border-gray-800 text-white/70 rounded-full font-bold text-lg flex items-center justify-center gap-3">
+                <Loader2 className="animate-spin text-[#ff0050]" />
+                Uploading to TikTok...
+              </div>
             )}
           </section>
 
-          {/* 4. Preview */}
+          {/* 4. Video Preview */}
           {currentVideoUrl && (
-            <div className="pt-6 border-t border-slate-100">
-                <h3 className="text-center font-bold text-slate-400 text-sm uppercase mb-4">Preview</h3>
-                <div className="bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-900 relative aspect-[9/16] max-w-[320px] mx-auto">
-                    <video 
-                        src={currentVideoUrl} 
-                        controls 
-                        autoPlay 
-                        loop 
-                        className="w-full h-full object-cover"
-                    />
-                </div>
-            </div>
+            <section className="pt-6 border-t border-gray-800">
+              <h3 className="text-center font-bold text-white/50 text-sm uppercase tracking-wider mb-6">
+                Preview
+              </h3>
+              <div className="bg-surface border border-gray-800 rounded-3xl overflow-hidden shadow-2xl relative aspect-[9/16] max-w-[320px] mx-auto">
+                <video
+                  src={currentVideoUrl}
+                  controls
+                  autoPlay
+                  loop
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </section>
           )}
-
+        </div>
       </div>
     </div>
   );

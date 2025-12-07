@@ -14,7 +14,7 @@ export const generateCreativeTitle = async (apiKey: string, brandContext: string
         Output ONLY the text, nothing else. No quotes.`,
     });
     
-    return response.text.trim();
+    return response.text?.trim() ?? '';
   } catch (error) {
     console.error("Gemini API Error:", error);
     throw error;
