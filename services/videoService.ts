@@ -126,8 +126,8 @@ export class VideoGenerator {
             this.ctx.restore();
         }
 
-        // Draw Main Text Overlay (centered)
-        if (lines.length > 0) {
+        // Draw Main Text Overlay (centered) with emoji at the end
+        if (lines.length > 0 || (emojiImg && emojiCount)) {
             this.ctx.save();
             this.ctx.translate(width / 2, height / 2);
             this.ctx.textAlign = "center";
@@ -143,6 +143,10 @@ export class VideoGenerator {
 
             lines.forEach((l, i) => {
                 const ly = startY + i * lineHeight;
+                const isLastLine = i === lines.length - 1;
+
+                // Calculate text width for last line (to position emoji)
+                const textWidth = this.ctx.measureText(l.trim()).width;
 
                 // Stroke (Outline)
                 this.ctx.strokeStyle = "black";
@@ -152,29 +156,37 @@ export class VideoGenerator {
                 // Fill (White)
                 this.ctx.fillStyle = "white";
                 this.ctx.fillText(l, 0, ly);
+
+                // Draw emoji after last line of text
+                if (isLastLine && emojiImg && emojiCount) {
+                    const emojiSize = Math.round(fontSize * 0.9);
+                    const emojiGap = Math.round(fontSize * 0.15);
+
+                    // Position emoji right after the text
+                    const emojiStartX = textWidth / 2 + emojiGap;
+                    const emojiY = ly - emojiSize / 2;
+
+                    for (let e = 0; e < emojiCount; e++) {
+                        const ex = emojiStartX + e * (emojiSize + emojiGap);
+                        this.ctx.drawImage(emojiImg, ex, emojiY, emojiSize, emojiSize);
+                    }
+                }
             });
 
-            this.ctx.restore();
-        }
+            // If no text but emoji exists, draw emoji centered
+            if (lines.length === 0 && emojiImg && emojiCount) {
+                const emojiSize = Math.round(fontSize * 1.2);
+                const emojiGap = Math.round(fontSize * 0.2);
+                const totalWidth = emojiCount * emojiSize + (emojiCount - 1) * emojiGap;
+                const startX = -totalWidth / 2;
 
-        // Draw Emoji below text
-        if (emojiImg && emojiCount) {
-            const emojiSize = Math.round(fontSize * 1.2);
-            const gap = Math.round(emojiSize * 0.3);
-            const totalWidth = emojiCount * emojiSize + (emojiCount - 1) * gap;
-
-            // Calculate Y position below the main text
-            const lineHeight = fontSize * 1.25;
-            const textBlockHeight =
-                lines.length > 0 ? lines.length * lineHeight : 0;
-            const emojiY = height / 2 + textBlockHeight / 2 + fontSize * 0.5;
-
-            const startX = (width - totalWidth) / 2;
-
-            for (let i = 0; i < emojiCount; i++) {
-                const x = startX + i * (emojiSize + gap);
-                this.ctx.drawImage(emojiImg, x, emojiY, emojiSize, emojiSize);
+                for (let e = 0; e < emojiCount; e++) {
+                    const ex = startX + e * (emojiSize + emojiGap);
+                    this.ctx.drawImage(emojiImg, ex, -emojiSize / 2, emojiSize, emojiSize);
+                }
             }
+
+            this.ctx.restore();
         }
     }
 

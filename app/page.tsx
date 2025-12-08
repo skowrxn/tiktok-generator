@@ -484,59 +484,17 @@ export default function Home() {
                             </div>
 
                             {/* Emoji Selection */}
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-white/80">
-                                    Emoji (opcjonalne)
-                                </label>
-                                <div className="flex gap-3 items-center">
-                                    {/* Emoji picker */}
-                                    <div className="flex-1 flex gap-2 overflow-x-auto py-1">
-                                        <button
-                                            onClick={() =>
-                                                setSelectedEmoji(null)
-                                            }
-                                            className={`flex-shrink-0 w-12 h-12 rounded-lg border-2 flex items-center justify-center transition-all ${
-                                                selectedEmoji === null
-                                                    ? "border-white bg-surface-light"
-                                                    : "border-gray-700 hover:border-white/50"
-                                            }`}
-                                        >
-                                            <X className="w-5 h-5 text-white/50" />
-                                        </button>
-                                        {(libraryData?.emojis || [])
-                                            .sort(
-                                                (
-                                                    a: EmojiAsset,
-                                                    b: EmojiAsset
-                                                ) => b.createdAt - a.createdAt
-                                            )
-                                            .map((emoji: EmojiAsset) => (
-                                                <button
-                                                    key={emoji.id}
-                                                    onClick={() =>
-                                                        setSelectedEmoji(emoji)
-                                                    }
-                                                    className={`flex-shrink-0 w-12 h-12 rounded-lg border-2 overflow-hidden transition-all ${
-                                                        selectedEmoji?.id ===
-                                                        emoji.id
-                                                            ? "border-white scale-105"
-                                                            : "border-gray-700 hover:border-white/50"
-                                                    }`}
-                                                >
-                                                    <img
-                                                        src={emoji.url}
-                                                        alt={emoji.name}
-                                                        className="w-full h-full object-contain p-1"
-                                                    />
-                                                </button>
-                                            ))}
-                                    </div>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <label className="block text-sm font-medium text-white/80">
+                                        Emoji (opcjonalne)
+                                    </label>
                                     {/* Emoji count selector */}
                                     {selectedEmoji && (
-                                        <div className="flex gap-1 flex-shrink-0">
+                                        <div className="flex gap-1">
                                             <button
                                                 onClick={() => setEmojiCount(1)}
-                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                                     emojiCount === 1
                                                         ? "bg-white text-black"
                                                         : "bg-surface-light text-white/70 hover:text-white"
@@ -546,7 +504,7 @@ export default function Home() {
                                             </button>
                                             <button
                                                 onClick={() => setEmojiCount(3)}
-                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                                     emojiCount === 3
                                                         ? "bg-white text-black"
                                                         : "bg-surface-light text-white/70 hover:text-white"
@@ -556,6 +514,44 @@ export default function Home() {
                                             </button>
                                         </div>
                                     )}
+                                </div>
+                                {/* Emoji picker grid */}
+                                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
+                                    <button
+                                        onClick={() => setSelectedEmoji(null)}
+                                        className={`aspect-square rounded-lg border-2 flex items-center justify-center transition-all ${
+                                            selectedEmoji === null
+                                                ? "border-white bg-surface-light"
+                                                : "border-gray-700 hover:border-white/50"
+                                        }`}
+                                    >
+                                        <X className="w-5 h-5 text-white/50" />
+                                    </button>
+                                    {(libraryData?.emojis || [])
+                                        .sort(
+                                            (a: EmojiAsset, b: EmojiAsset) =>
+                                                b.createdAt - a.createdAt
+                                        )
+                                        .map((emoji: EmojiAsset) => (
+                                            <button
+                                                key={emoji.id}
+                                                onClick={() =>
+                                                    setSelectedEmoji(emoji)
+                                                }
+                                                className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${
+                                                    selectedEmoji?.id ===
+                                                    emoji.id
+                                                        ? "border-white scale-105"
+                                                        : "border-gray-700 hover:border-white/50"
+                                                }`}
+                                            >
+                                                <img
+                                                    src={emoji.url}
+                                                    alt={emoji.name}
+                                                    className="w-full h-full object-contain p-1"
+                                                />
+                                            </button>
+                                        ))}
                                 </div>
                                 {(libraryData?.emojis || []).length === 0 && (
                                     <p className="text-xs text-white/40">

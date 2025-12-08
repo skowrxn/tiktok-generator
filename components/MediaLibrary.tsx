@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
     Image as ImageIcon,
     Music,
@@ -44,10 +44,22 @@ export default function MediaLibrary() {
         emojis: {},
     });
 
-    const images = data?.images || [];
-    const musicList = data?.music || [];
-    const texts = data?.texts || [];
-    const emojis = data?.emojis || [];
+    const images = useMemo(
+        () => [...(data?.images || [])].sort((a, b) => b.createdAt - a.createdAt),
+        [data?.images]
+    );
+    const musicList = useMemo(
+        () => [...(data?.music || [])].sort((a, b) => b.createdAt - a.createdAt),
+        [data?.music]
+    );
+    const texts = useMemo(
+        () => [...(data?.texts || [])].sort((a, b) => b.createdAt - a.createdAt),
+        [data?.texts]
+    );
+    const emojis = useMemo(
+        () => [...(data?.emojis || [])].sort((a, b) => b.createdAt - a.createdAt),
+        [data?.emojis]
+    );
 
     // File to base64 conversion
     const fileToBase64 = (file: File): Promise<string> => {
@@ -380,12 +392,7 @@ export default function MediaLibrary() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2">
-                                    {images
-                                        .sort(
-                                            (a: ImageAsset, b: ImageAsset) =>
-                                                b.createdAt - a.createdAt
-                                        )
-                                        .map((image: ImageAsset) => (
+                                    {images.map((image: ImageAsset) => (
                                             <div
                                                 key={image.id}
                                                 className="relative group aspect-square rounded-lg overflow-hidden border border-gray-800"
@@ -437,12 +444,7 @@ export default function MediaLibrary() {
                                 </button>
 
                                 <div className="space-y-2">
-                                    {musicList
-                                        .sort(
-                                            (a: MusicAsset, b: MusicAsset) =>
-                                                b.createdAt - a.createdAt
-                                        )
-                                        .map((music: MusicAsset) => {
+                                    {musicList.map((music: MusicAsset) => {
                                             const isPlaying =
                                                 playingMusicId === music.id;
                                             return (
@@ -546,12 +548,7 @@ export default function MediaLibrary() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    {texts
-                                        .sort(
-                                            (a: TextAsset, b: TextAsset) =>
-                                                b.createdAt - a.createdAt
-                                        )
-                                        .map((text: TextAsset) => (
+                                    {texts.map((text: TextAsset) => (
                                             <div
                                                 key={text.id}
                                                 className="flex items-start gap-2 p-3 bg-surface rounded-lg border border-gray-800 group"
@@ -607,12 +604,7 @@ export default function MediaLibrary() {
                                 </button>
 
                                 <div className="grid grid-cols-3 gap-2">
-                                    {emojis
-                                        .sort(
-                                            (a: EmojiAsset, b: EmojiAsset) =>
-                                                b.createdAt - a.createdAt
-                                        )
-                                        .map((emoji: EmojiAsset) => (
+                                    {emojis.map((emoji: EmojiAsset) => (
                                             <div
                                                 key={emoji.id}
                                                 className="relative group aspect-square rounded-lg bg-surface border border-gray-800 overflow-hidden"
