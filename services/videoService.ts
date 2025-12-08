@@ -40,9 +40,32 @@ export class VideoGenerator {
         return "";
     }
 
+    private wrapText(text: string, fontSize: number): string[] {
+        if (!text) return [];
+        this.ctx.font = `bold ${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", Arial, sans-serif`;
+        const words = text.split(" ");
+        let line = "";
+        const lines = [];
+        const maxWidth = this.canvas.width - 100;
+
+        for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + " ";
+            const metrics = this.ctx.measureText(testLine);
+            const testWidth = metrics.width;
+            if (testWidth > maxWidth && n > 0) {
+                lines.push(line);
+                line = words[n] + " ";
+            } else {
+                line = testLine;
+            }
+        }
+        lines.push(line);
+        return lines;
+    }
+
     private drawFrame(
         img: HTMLImageElement,
-        text: string,
+        lines: string[],
         topText: string | undefined,
         fontSize: number
     ) {
@@ -93,7 +116,7 @@ export class VideoGenerator {
         }
 
         // Draw Main Text Overlay (centered)
-        if (text) {
+        if (lines.length > 0) {
             this.ctx.save();
             this.ctx.translate(width / 2, height / 2);
             this.ctx.textAlign = "center";
@@ -104,28 +127,9 @@ export class VideoGenerator {
             this.ctx.lineJoin = "round";
             this.ctx.miterLimit = 2;
 
-            // Wrap text logic
-            const words = text.split(" ");
-            let line = "";
-            const lines = [];
-            const maxWidth = this.canvas.width - 100;
             const lineHeight = fontSize * 1.25;
-
-            for (let n = 0; n < words.length; n++) {
-                const testLine = line + words[n] + " ";
-                const metrics = this.ctx.measureText(testLine);
-                const testWidth = metrics.width;
-                if (testWidth > maxWidth && n > 0) {
-                    lines.push(line);
-                    line = words[n] + " ";
-                } else {
-                    line = testLine;
-                }
-            }
-            lines.push(line);
-
-            // Draw lines centered
             const startY = -((lines.length - 1) * lineHeight) / 2;
+
             lines.forEach((l, i) => {
                 const ly = startY + i * lineHeight;
 
@@ -151,13 +155,13 @@ export class VideoGenerator {
             config.images.map(this.loadImage)
         );
 
+        // Setup stream early (60fps) to ensure initial frame is captured
+        const canvasStream = this.canvas.captureStream(60);
+
+        const lines = this.wrapText(config.overlayText, config.fontSize);
+
         // 2. Initial draw
-        this.drawFrame(
-            loadedImages[0],
-            config.overlayText,
-            config.topText,
-            config.fontSize
-        );
+        this.drawFrame(loadedImages[0], lines, config.topText, config.fontSize);
 
         // 3. Setup audio if provided
         let audioContext: AudioContext | null = null;
@@ -191,7 +195,6 @@ export class VideoGenerator {
         }
 
         // 4. Setup MediaRecorder with combined stream
-        const canvasStream = this.canvas.captureStream(30);
         let combinedStream: MediaStream;
 
         if (audioDestination) {
@@ -281,7 +284,7 @@ export class VideoGenerator {
                     Math.floor(elapsed / frameDurationMs) % loadedImages.length;
                 this.drawFrame(
                     loadedImages[imageIndex],
-                    config.overlayText,
+                    lines,
                     config.topText,
                     config.fontSize
                 );
