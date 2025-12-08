@@ -23,6 +23,15 @@ export class VideoGenerator {
         });
     }
 
+    private async loadImageFromUrl(url: string): Promise<HTMLImageElement> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+        });
+    }
+
     private getSupportedMimeType(): string {
         const types = [
             "video/webm;codecs=vp9,opus",
@@ -67,7 +76,9 @@ export class VideoGenerator {
         img: HTMLImageElement,
         lines: string[],
         topText: string | undefined,
-        fontSize: number
+        fontSize: number,
+        emojiImg?: HTMLImageElement,
+        emojiCount?: 1 | 3
     ) {
         const { width, height } = this.canvas;
 
@@ -145,6 +156,26 @@ export class VideoGenerator {
 
             this.ctx.restore();
         }
+
+        // Draw Emoji below text
+        if (emojiImg && emojiCount) {
+            const emojiSize = Math.round(fontSize * 1.2);
+            const gap = Math.round(emojiSize * 0.3);
+            const totalWidth = emojiCount * emojiSize + (emojiCount - 1) * gap;
+
+            // Calculate Y position below the main text
+            const lineHeight = fontSize * 1.25;
+            const textBlockHeight =
+                lines.length > 0 ? lines.length * lineHeight : 0;
+            const emojiY = height / 2 + textBlockHeight / 2 + fontSize * 0.5;
+
+            const startX = (width - totalWidth) / 2;
+
+            for (let i = 0; i < emojiCount; i++) {
+                const x = startX + i * (emojiSize + gap);
+                this.ctx.drawImage(emojiImg, x, emojiY, emojiSize, emojiSize);
+            }
+        }
     }
 
     public async generate(config: VideoConfig): Promise<Blob> {
@@ -155,13 +186,30 @@ export class VideoGenerator {
             config.images.map(this.loadImage)
         );
 
+        // Load emoji image if provided
+        let emojiImg: HTMLImageElement | undefined;
+        if (config.emojiUrl) {
+            try {
+                emojiImg = await this.loadImageFromUrl(config.emojiUrl);
+            } catch (e) {
+                console.warn("Failed to load emoji image:", e);
+            }
+        }
+
         // Setup stream early (60fps) to ensure initial frame is captured
         const canvasStream = this.canvas.captureStream(60);
 
         const lines = this.wrapText(config.overlayText, config.fontSize);
 
         // 2. Initial draw
-        this.drawFrame(loadedImages[0], lines, config.topText, config.fontSize);
+        this.drawFrame(
+            loadedImages[0],
+            lines,
+            config.topText,
+            config.fontSize,
+            emojiImg,
+            config.emojiCount
+        );
 
         // 3. Setup audio if provided
         let audioContext: AudioContext | null = null;
@@ -286,7 +334,9 @@ export class VideoGenerator {
                     loadedImages[imageIndex],
                     lines,
                     config.topText,
-                    config.fontSize
+                    config.fontSize,
+                    emojiImg,
+                    config.emojiCount
                 );
 
                 requestAnimationFrame(animate);

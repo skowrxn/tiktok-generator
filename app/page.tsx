@@ -12,10 +12,17 @@ import {
     Shuffle,
     Menu,
     ChevronLeft,
+    RefreshCw,
 } from "lucide-react";
 import { VideoGenerator } from "../services/videoService";
 import { AppStatus } from "../types";
-import { db, ImageAsset, MusicAsset, TextAsset } from "../lib/instantdb";
+import {
+    db,
+    ImageAsset,
+    MusicAsset,
+    TextAsset,
+    EmojiAsset,
+} from "../lib/instantdb";
 import MediaLibrary from "../components/MediaLibrary";
 
 export default function Home() {
@@ -32,6 +39,8 @@ export default function Home() {
     const [isDragging, setIsDragging] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [selectedMusic, setSelectedMusic] = useState<MusicAsset | null>(null);
+    const [selectedEmoji, setSelectedEmoji] = useState<EmojiAsset | null>(null);
+    const [emojiCount, setEmojiCount] = useState<1 | 3>(1);
 
     // Refs
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +51,7 @@ export default function Home() {
         images: {},
         music: {},
         texts: {},
+        emojis: {},
     });
 
     // --- Handlers ---
@@ -169,6 +179,18 @@ export default function Home() {
         resetGenerationState();
     };
 
+    // Randomize only text from library
+    const handleRandomizeText = () => {
+        const libraryTexts = libraryData?.texts || [];
+        if (libraryTexts.length === 0) {
+            alert("Dodaj najpierw teksty do biblioteki zasobów!");
+            return;
+        }
+        const randomText =
+            libraryTexts[Math.floor(Math.random() * libraryTexts.length)];
+        setOverlayText(randomText.content);
+    };
+
     // --- Drag & Drop Handlers ---
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
@@ -228,6 +250,8 @@ export default function Home() {
                 totalDuration,
                 fontSize,
                 audioUrl: selectedMusic?.url,
+                emojiUrl: selectedEmoji?.url,
+                emojiCount: selectedEmoji ? emojiCount : undefined,
             });
 
             const localUrl = URL.createObjectURL(blob);
@@ -439,15 +463,105 @@ export default function Home() {
                                 <label className="block text-sm font-medium text-white/80">
                                     Główny tekst
                                 </label>
-                                <input
-                                    type="text"
-                                    value={overlayText}
-                                    onChange={(e) =>
-                                        setOverlayText(e.target.value)
-                                    }
-                                    placeholder="np. NOWA KOLEKCJA"
-                                    className="w-full p-4 bg-surface-light border border-gray-800 rounded-xl focus:ring-2 focus:ring-white/20 outline-none text-white placeholder-white/40 font-medium"
-                                />
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={overlayText}
+                                        onChange={(e) =>
+                                            setOverlayText(e.target.value)
+                                        }
+                                        placeholder="np. NOWA KOLEKCJA"
+                                        className="flex-1 p-4 bg-surface-light border border-gray-800 rounded-xl focus:ring-2 focus:ring-white/20 outline-none text-white placeholder-white/40 font-medium"
+                                    />
+                                    <button
+                                        onClick={handleRandomizeText}
+                                        title="Losuj tekst z biblioteki"
+                                        className="px-4 bg-surface-light border border-gray-800 rounded-xl hover:bg-surface hover:border-white/30 transition-colors"
+                                    >
+                                        <RefreshCw className="w-5 h-5 text-white/70" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Emoji Selection */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-white/80">
+                                    Emoji (opcjonalne)
+                                </label>
+                                <div className="flex gap-3 items-center">
+                                    {/* Emoji picker */}
+                                    <div className="flex-1 flex gap-2 overflow-x-auto py-1">
+                                        <button
+                                            onClick={() =>
+                                                setSelectedEmoji(null)
+                                            }
+                                            className={`flex-shrink-0 w-12 h-12 rounded-lg border-2 flex items-center justify-center transition-all ${
+                                                selectedEmoji === null
+                                                    ? "border-white bg-surface-light"
+                                                    : "border-gray-700 hover:border-white/50"
+                                            }`}
+                                        >
+                                            <X className="w-5 h-5 text-white/50" />
+                                        </button>
+                                        {(libraryData?.emojis || [])
+                                            .sort(
+                                                (
+                                                    a: EmojiAsset,
+                                                    b: EmojiAsset
+                                                ) => b.createdAt - a.createdAt
+                                            )
+                                            .map((emoji: EmojiAsset) => (
+                                                <button
+                                                    key={emoji.id}
+                                                    onClick={() =>
+                                                        setSelectedEmoji(emoji)
+                                                    }
+                                                    className={`flex-shrink-0 w-12 h-12 rounded-lg border-2 overflow-hidden transition-all ${
+                                                        selectedEmoji?.id ===
+                                                        emoji.id
+                                                            ? "border-white scale-105"
+                                                            : "border-gray-700 hover:border-white/50"
+                                                    }`}
+                                                >
+                                                    <img
+                                                        src={emoji.url}
+                                                        alt={emoji.name}
+                                                        className="w-full h-full object-contain p-1"
+                                                    />
+                                                </button>
+                                            ))}
+                                    </div>
+                                    {/* Emoji count selector */}
+                                    {selectedEmoji && (
+                                        <div className="flex gap-1 flex-shrink-0">
+                                            <button
+                                                onClick={() => setEmojiCount(1)}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                    emojiCount === 1
+                                                        ? "bg-white text-black"
+                                                        : "bg-surface-light text-white/70 hover:text-white"
+                                                }`}
+                                            >
+                                                1x
+                                            </button>
+                                            <button
+                                                onClick={() => setEmojiCount(3)}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                    emojiCount === 3
+                                                        ? "bg-white text-black"
+                                                        : "bg-surface-light text-white/70 hover:text-white"
+                                                }`}
+                                            >
+                                                3x
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {(libraryData?.emojis || []).length === 0 && (
+                                    <p className="text-xs text-white/40">
+                                        Dodaj grafiki emoji w bibliotece zasobów
+                                    </p>
+                                )}
                             </div>
 
                             {/* Sliders Grid */}
